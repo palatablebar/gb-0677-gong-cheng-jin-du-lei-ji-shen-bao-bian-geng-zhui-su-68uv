@@ -25,18 +25,21 @@ docker compose exec -T app pytest -q
 
 累计申报必须减前期已审金额，变更按审批生效版本覆盖；负进度需关联冲回证据。
 
+同一组申报内容只有一个月末封存编号 `MS-<YYYYMM>-<内容摘要>`。摘要取自业务内容、与行顺序无关：换行顺序重投仍落到同一批次与同一编号，两份原始投递分别保留并可下载。封存版本按证据追加，失败或中断后旧版证据可恢复，重试沿用已有版本。
+
 ## 演示
 
 1. 打开首页，核对当次计算、差异和隔离原因。
 2. 切换模块查看源行及裁决依据。
-3. 重跑相同样例，批次号与行数保持一致。
-4. 复核后导出一份证据CSV。版本已变化的复核提交返回409。
+3. 换序重投同一批内容：批次号与月末封存编号保持不变，投递清单多一条原始投递。
+4. 在签证归档页封存，查看封存编号与版本；导出投递对应表核对每次投递归属。
+5. 复核后导出证据CSV。版本已变化的复核提交返回409。
 
 ## 输入与输出
 
 输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
 
-`POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回唯一证据导出。
+`POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回证据导出；`POST /api/runs/<id>/seal`封存；`GET /api/seal-map.csv`导出投递与封存编号对应关系。
 
 ## 范围
 

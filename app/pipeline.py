@@ -2,7 +2,8 @@ import time
 from app.config import ROOT,MODULES
 from app.errors import DomainError
 from app.values import scalar
-from app.manifest import digest,manifest
+from app.manifest import manifest
+from app.identity import content_digest,seal_number as make_seal_number,seal_month,delivery_digest
 from app import store
 from app.modules.m1_claims.rules import evaluate as stage1
 from app.modules.m2_billitems.rules import evaluate as stage2
@@ -25,9 +26,17 @@ def calculate(raw,params=None,stop=6):
         result["cumulative_quarantine"]=list(context["quarantine"])
         context[MODULES[index][0]]=result
         stages.append(result)
-    return {"run_id":digest(raw,params)[:20],"stages":stages,"manifest":manifest(raw,params,started),"parameters":params}
-def execute(raw,params=None):
-    result=calculate(raw,params);return store.save(result["run_id"],result)
+    # 批次身份取自业务内容而非文件字节：换行顺序重投仍落到同一批次与同一封存编号。
+    content=content_digest(stages,params)
+    final_rows=stages[-1]["rows"]
+    seal=make_seal_number(content,final_rows) if stop>=len(STAGES)-1 else None
+    review_rows=final_rows
+    meta=manifest(raw,params,started,content_sha256=content,seal_number=seal,seal_month=seal_month(review_rows) if seal else None,delivery_sha256=delivery_digest(raw,params))
+    return {"run_id":content[:20],"stages":stages,"manifest":meta,"content_sha256":content,"seal_number":seal,"parameters":params}
+def execute(raw,params=None,source=None):
+    params=params or {}
+    result=calculate(raw,params)
+    return store.save(result["run_id"],result,delivery={"raw":raw,"params":params,"source":source})
 def stage_preview(index,payload):
     if "rows" in payload and index>0:
         if not isinstance(payload["rows"],list) or any(not isinstance(row,dict) for row in payload["rows"]): raise DomainError("BAD_ROWS","记录需要对象列表")
